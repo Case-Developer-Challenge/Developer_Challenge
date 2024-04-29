@@ -14,10 +14,12 @@ namespace Project_2
         [SerializeField] private BlockController blockControllerPrefab;
         [SerializeField] private List<Material> blockMaterialList;
         [SerializeField] private GameObject finalGo;
+        [SerializeField] private AudioManager audioManager;
         [Header("Balance")] [SerializeField] private Vector2 blockMoveSpeedRandomRange;
         [SerializeField] private float delayAtStart, delayBetween;
         [SerializeField] private float blockDistanceToCreate;
         [SerializeField] private int blocksToFinish;
+        [SerializeField] private float perfectDistance;
         private GameState _gameState = GameState.Idle;
         private float _waitDuration;
         private float _currentBlockSpeed;
@@ -26,6 +28,7 @@ namespace Project_2
         private int _createdBlockCount = 1;
         private float _middlePoint;
         private float _blockWidth;
+        private int _perfectStreak;
         private void OnEnable()
         {
             startButton.onClick.AddListener(StartButtonClicked);
@@ -56,10 +59,7 @@ namespace Project_2
             }
             else if (_gameState == GameState.BlockMoving)
             {
-                if (Input.GetMouseButtonDown(0))
-                {
-                    StopBlock();
-                }
+                if (Input.GetMouseButtonDown(0)) StopBlock();
             }
         }
         private void FixedUpdate()
@@ -83,6 +83,19 @@ namespace Project_2
         private void StopBlock()
         {
             var distance = _createdBlock.transform.position.x - _middlePoint;
+            if (Mathf.Abs(distance) < perfectDistance)
+            {
+                audioManager.PlayPerfectSound(++_perfectStreak);
+                var perfectBlockPos = _createdBlock.transform.position;
+                perfectBlockPos = new Vector3(_middlePoint, perfectBlockPos.y, perfectBlockPos.z);
+                _createdBlock.transform.position = perfectBlockPos;
+                characterController.MoveToPoint(perfectBlockPos + Vector3.up / 2, CharacterArrived);
+                _gameState = _createdBlockCount == blocksToFinish ? GameState.Completed : GameState.CharacterMoving;
+
+                return;
+            }
+
+            _perfectStreak = 0;
             var oldBlockWidth = _blockWidth;
             if (Mathf.Abs(distance) > _blockWidth)
             {
