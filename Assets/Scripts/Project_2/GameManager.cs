@@ -22,12 +22,14 @@ namespace Project_2
         private bool _isBlockFromRight;
         private BlockController _createdBlock;
         private int _createdBlockCount = 1;
-        private float _middlePoint = 0;
+        private float _middlePoint;
+        private float _blockWidth;
         private void OnEnable()
         {
             startButton.onClick.AddListener(StartButtonClicked);
             restartButton.onClick.AddListener(RestartButtonClicked);
             completedButton.onClick.AddListener(CompleteButtonClicked);
+            _blockWidth = blockControllerPrefab.transform.localScale.x;
         }
         private void OnDisable()
         {
@@ -52,13 +54,47 @@ namespace Project_2
             {
                 if (Input.GetMouseButtonDown(0))
                 {
-                    // Mathf.Abs(_middlePoint - _createdBlock.transform.position.z)
-                    var blockPos = _createdBlock.transform.position;
-                    _middlePoint = blockPos.z;
-                    characterController.MoveToPoint(blockPos + Vector3.up / 2, CharacterArrived);
-                    _gameState = GameState.CharacterMoving;
+                    StopBlock();
                 }
             }
+        }
+        private void StopBlock()
+        {
+            var distance = _createdBlock.transform.position.x - _middlePoint;
+            var oldBlockWidth = _blockWidth;
+            if (Mathf.Abs(distance) > _blockWidth)
+            {
+                GameOver();
+                return;
+            }
+
+            _blockWidth -= Mathf.Abs(distance);
+            _middlePoint += distance / 2;
+            var createdBlockTransform = _createdBlock.transform;
+            var blockScale = createdBlockTransform.localScale;
+            var blockPos = createdBlockTransform.position;
+
+            createdBlockTransform.localScale = new Vector3(_blockWidth, blockScale.y, blockScale.z);
+            blockPos = new Vector3(_middlePoint, blockPos.y, blockPos.z);
+            createdBlockTransform.position = blockPos;
+
+            var directionSign = distance < 0 ? -1 : 1;
+            var fallCubeScale = new Vector3(oldBlockWidth - _blockWidth, blockScale.y, blockScale.z);
+            var fallBlockPosX = (_middlePoint + (_blockWidth / 2 * directionSign)) + fallCubeScale.x / 2 * directionSign;
+            var fallCubePos = new Vector3(fallBlockPosX, blockPos.y, blockPos.z);
+
+            var fallBlock = Instantiate(_createdBlock);
+            fallBlock.transform.position = fallCubePos;
+            fallBlock.transform.localScale = fallCubeScale;
+            fallBlock.Fall();
+            
+            characterController.MoveToPoint(blockPos + Vector3.up / 2, CharacterArrived);
+            _gameState = GameState.CharacterMoving;
+        }
+        private void GameOver()
+        {
+            _gameState = GameState.Failed;
+            restartButton.gameObject.SetActive(true);
         }
         private void FixedUpdate()
         {
@@ -74,11 +110,12 @@ namespace Project_2
         {
             _isBlockFromRight = !_isBlockFromRight;
             _currentBlockSpeed = (_isBlockFromRight ? -1 : 1) * Random.Range(blockMoveSpeedRandomRange.x, blockMoveSpeedRandomRange.y);
-            var blockXPos =  (_isBlockFromRight ? 1 : -1) * (blockDistanceToCreate + _middlePoint);
+            var blockXPos = (_isBlockFromRight ? 1 : -1) * (blockDistanceToCreate + _middlePoint);
             var blockZPos = _createdBlockCount * blockControllerPrefab.transform.localScale.z;
             _createdBlock = Instantiate(blockControllerPrefab,
                 new Vector3(blockXPos, 0, blockZPos), Quaternion.identity);
             _createdBlock.SetMaterial(blockMaterialList[Random.Range(0, blockMaterialList.Count)]);
+            _createdBlock.SetWidth(_blockWidth);
             _createdBlockCount += 1;
         }
         private void CompleteButtonClicked()
