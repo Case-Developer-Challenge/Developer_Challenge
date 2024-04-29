@@ -13,9 +13,11 @@ namespace Project_2
         [SerializeField] private Button startButton, restartButton, completedButton;
         [SerializeField] private BlockController blockControllerPrefab;
         [SerializeField] private List<Material> blockMaterialList;
+        [SerializeField] private GameObject finalGo;
         [Header("Balance")] [SerializeField] private Vector2 blockMoveSpeedRandomRange;
         [SerializeField] private float delayAtStart, delayBetween;
         [SerializeField] private float blockDistanceToCreate;
+        [SerializeField] private int blocksToFinish;
         private GameState _gameState = GameState.Idle;
         private float _waitDuration;
         private float _currentBlockSpeed;
@@ -29,7 +31,9 @@ namespace Project_2
             startButton.onClick.AddListener(StartButtonClicked);
             restartButton.onClick.AddListener(RestartButtonClicked);
             completedButton.onClick.AddListener(CompleteButtonClicked);
-            _blockWidth = blockControllerPrefab.transform.localScale.x;
+            var localScale = blockControllerPrefab.transform.localScale;
+            _blockWidth = localScale.x;
+            finalGo.transform.position = new Vector3(0, .5f, localScale.z * blocksToFinish);
         }
         private void OnDisable()
         {
@@ -57,6 +61,24 @@ namespace Project_2
                     StopBlock();
                 }
             }
+        }
+        private void FixedUpdate()
+        {
+            if (_gameState == GameState.BlockMoving)
+                _createdBlock.transform.position += Vector3.right * (_currentBlockSpeed * Time.fixedDeltaTime);
+        }
+        private void CreateBlock()
+        {
+            _isBlockFromRight = !_isBlockFromRight;
+            _currentBlockSpeed = (_isBlockFromRight ? -1 : 1) * Random.Range(blockMoveSpeedRandomRange.x, blockMoveSpeedRandomRange.y);
+            var blockXPos = (_isBlockFromRight ? 1 : -1) * (blockDistanceToCreate + _middlePoint);
+            var blockZPos = _createdBlockCount * blockControllerPrefab.transform.localScale.z;
+            _createdBlock = Instantiate(blockControllerPrefab,
+                new Vector3(blockXPos, 0, blockZPos), Quaternion.identity);
+            _createdBlock.SetMaterial(blockMaterialList[Random.Range(0, blockMaterialList.Count)]);
+            _createdBlock.SetWidth(_blockWidth);
+            _createdBlockCount += 1;
+            print(_createdBlockCount);
         }
         private void StopBlock()
         {
@@ -87,41 +109,34 @@ namespace Project_2
             fallBlock.transform.position = fallCubePos;
             fallBlock.transform.localScale = fallCubeScale;
             fallBlock.Fall();
-            
+
             characterController.MoveToPoint(blockPos + Vector3.up / 2, CharacterArrived);
-            _gameState = GameState.CharacterMoving;
+            _gameState = _createdBlockCount == blocksToFinish ? GameState.Completed : GameState.CharacterMoving;
         }
         private void GameOver()
         {
             _gameState = GameState.Failed;
             restartButton.gameObject.SetActive(true);
         }
-        private void FixedUpdate()
-        {
-            if (_gameState == GameState.BlockMoving)
-                _createdBlock.transform.position += Vector3.right * (_currentBlockSpeed * Time.fixedDeltaTime);
-        }
         private void CharacterArrived()
         {
+            if (_gameState == GameState.Completed)
+            {
+                characterController.MoveToPoint(finalGo.transform.position, CharacterWon);
+                return;
+            }
+
             _gameState = GameState.Waiting;
             _waitDuration = delayBetween;
         }
-        private void CreateBlock()
+        private void CharacterWon()
         {
-            _isBlockFromRight = !_isBlockFromRight;
-            _currentBlockSpeed = (_isBlockFromRight ? -1 : 1) * Random.Range(blockMoveSpeedRandomRange.x, blockMoveSpeedRandomRange.y);
-            var blockXPos = (_isBlockFromRight ? 1 : -1) * (blockDistanceToCreate + _middlePoint);
-            var blockZPos = _createdBlockCount * blockControllerPrefab.transform.localScale.z;
-            _createdBlock = Instantiate(blockControllerPrefab,
-                new Vector3(blockXPos, 0, blockZPos), Quaternion.identity);
-            _createdBlock.SetMaterial(blockMaterialList[Random.Range(0, blockMaterialList.Count)]);
-            _createdBlock.SetWidth(_blockWidth);
-            _createdBlockCount += 1;
+            characterController.StartDance();
+            completedButton.gameObject.SetActive(true);
         }
         private void CompleteButtonClicked()
         {
-            completedButton.gameObject.SetActive(false);
-            _waitDuration = delayAtStart;
+            SceneManager.LoadScene(0);
         }
         private void RestartButtonClicked()
         {
